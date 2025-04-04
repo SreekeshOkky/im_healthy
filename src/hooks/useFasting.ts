@@ -35,13 +35,64 @@ export const useFasting = () => {
         // Sort in memory
         history.sort((a, b) => b.startTime - a.startTime);
         
-        setState(prev => ({ ...prev, history }));
+        // Update both history and activeFast if it exists
+        setState(prev => {
+          const newState = { ...prev, history };
+          if (prev.activeFast) {
+            // If there's an active fast, ensure it has the correct document ID
+            const activeFastDoc = querySnapshot.docs.find(doc => 
+              doc.data().startTime === prev.activeFast?.startTime
+            );
+            if (activeFastDoc) {
+              newState.activeFast = {
+                ...prev.activeFast,
+                id: activeFastDoc.id
+              };
+            }
+          }
+          return newState;
+        });
       } catch (error) {
         console.error('Error loading fasting history:', error);
       }
     };
 
     loadHistory();
+  }, [user]);
+
+  // Listen for active fasts in real-time
+  useEffect(() => {
+    if (!user) return;
+
+    const fastingsRef = collection(db, 'fastings');
+    const activeFastQuery = query(
+      fastingsRef,
+      where('userId', '==', user.uid),
+      where('endTime', '==', null)
+    );
+
+    const unsubscribe = onSnapshot(activeFastQuery, (snapshot) => {
+      const activeFasts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as FastingSession));
+
+      if (activeFasts.length > 0) {
+        // Update active fast if there's one in Firestore
+        setState(prev => ({
+          ...prev,
+          activeFast: activeFasts[0]
+        }));
+      } else {
+        // Clear active fast if none exists in Firestore
+        setState(prev => ({
+          ...prev,
+          activeFast: null
+        }));
+      }
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   // Save state to localStorage whenever it changes
@@ -56,16 +107,22 @@ export const useFasting = () => {
     }
 
     try {
-      const tempId = Date.now().toString();
-      const newFast: FastingSession = {
-        id: tempId,
+      const newFast: Omit<FastingSession, 'id'> = {
         userId: user.uid,
         startTime: Date.now(),
         endTime: null,
         targetHours
       };
 
-      setState(prev => ({ ...prev, activeFast: newFast }));
+      // Save to Firestore immediately
+      const fastingsRef = collection(db, 'fastings');
+      const docRef = await addDoc(fastingsRef, newFast);
+      
+      // Update local state with the Firestore document ID
+      setState(prev => ({ 
+        ...prev, 
+        activeFast: { ...newFast, id: docRef.id } 
+      }));
     } catch (error) {
       console.error('Error starting fast:', error);
       throw error;
@@ -111,6 +168,13 @@ export const useFasting = () => {
         startTime: newStartTime
       };
 
+      // Update in Firestore
+      const fastRef = doc(db, 'fastings', state.activeFast.id);
+      await updateDoc(fastRef, {
+        startTime: newStartTime
+      });
+
+      // Update local state
       setState(prev => ({ ...prev, activeFast: updatedFast }));
     } catch (error) {
       console.error('Error updating start time:', error);
