@@ -9,7 +9,7 @@ interface FastingDetailsProps {
   sessions: FastingSession[];
   onClose: () => void;
   onDelete?: (fastId: string) => void;
-  onUpdateEndTime: (newEndTime: number) => Promise<void>;
+  onUpdateEndTime: (fastId: string, newEndTime: number) => Promise<void>;
 }
 
 export const FastingDetails: React.FC<FastingDetailsProps> = ({
@@ -71,11 +71,18 @@ export const FastingDetails: React.FC<FastingDetailsProps> = ({
     }
 
     try {
-      await onUpdateEndTime(selectedTime);
+      if (!sessions[0].id) {
+        setError('Invalid fasting session');
+        return;
+      }
+      await onUpdateEndTime(sessions[0].id, selectedTime);
       setIsEditing(false);
       setError('');
+      setToast({ message: 'End time updated successfully', type: 'success' });
     } catch (error) {
-      setError('Failed to update end time');
+      console.error('Error updating end time:', error);
+      setError('Failed to update end time. The fasting session may have been deleted.');
+      setToast({ message: 'Failed to update end time', type: 'error' });
     }
   };
 
@@ -137,8 +144,22 @@ export const FastingDetails: React.FC<FastingDetailsProps> = ({
                       <div className="text-sm text-gray-500">
                         Ended: {format(session.endTime, 'h:mm a')}
                       </div>
-                      <div className="text-sm font-medium text-green-600">
-                        Completed: {getCompletedTime(session.startTime, session.endTime)}
+                      <div className="flex items-center space-x-2">
+                        <div className="text-sm font-medium text-green-600">
+                          Completed: {getCompletedTime(session.startTime, session.endTime)}
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (session.endTime) {
+                              setNewEndTime(format(session.endTime, "yyyy-MM-dd'T'HH:mm"));
+                              setIsEditing(true);
+                            }
+                          }}
+                          className="p-1 text-blue-500 hover:text-blue-700 rounded-full hover:bg-blue-50"
+                          title="Edit end time"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   )}
@@ -188,8 +209,8 @@ export const FastingDetails: React.FC<FastingDetailsProps> = ({
       {isEditing && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Fasting Details</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Edit End Time</h2>
               <button
                 onClick={handleCancel}
                 className="text-gray-500 hover:text-gray-700"
@@ -200,55 +221,28 @@ export const FastingDetails: React.FC<FastingDetailsProps> = ({
 
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-500">End Time</p>
-                <div className="space-y-2">
-                  <input
-                    type="datetime-local"
-                    value={newEndTime}
-                    onChange={(e) => setNewEndTime(e.target.value)}
-                    max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {error && <p className="text-sm text-red-500">{error}</p>}
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={handleSave}
-                      className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <Check size={16} className="mr-1" />
-                      Save
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      className="flex items-center px-3 py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                    >
-                      <X size={16} className="mr-1" />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+                <input
+                  type="datetime-local"
+                  value={newEndTime}
+                  onChange={(e) => setNewEndTime(e.target.value)}
+                  max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
               </div>
 
-              <div>
-                <p className="text-sm text-gray-500">Duration</p>
-                <p className="text-lg font-medium text-gray-900">
-                  {getCompletedTime(sessions[0].startTime, sessions[0].endTime)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-sm text-gray-500">Target</p>
-                <p className="text-lg font-medium text-gray-900">
-                  {sessions.length > 0 && sessions[0].targetHours}h
-                </p>
-              </div>
-
-              <div className="pt-4 border-t">
+              <div className="flex justify-end space-x-2">
                 <button
-                  onClick={() => setDeleteConfirmId(sessions[0].id)}
-                  className="w-full py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={handleCancel}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
-                  Delete Fast
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Save
                 </button>
               </div>
             </div>

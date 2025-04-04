@@ -151,10 +151,16 @@ export const useFasting = () => {
     if (!user) return;
 
     try {
-      const fastRef = doc(db, 'fastings', fastId);
-      await updateDoc(fastRef, {
-        endTime: newEndTime
-      });
+      const q = query(collection(db, 'fastings'), where('id', '==', fastId));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const docSnap = querySnapshot.docs[0]; // Assuming 'id' is unique
+        const docRef = doc(db, 'fastings', docSnap.id);
+        await updateDoc(docRef, { endTime: newEndTime });
+      } else {
+        throw new Error('No matching document found for id: ' + fastId);
+      }
       
       // Update local state
       setState(prev => ({

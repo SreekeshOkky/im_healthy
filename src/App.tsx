@@ -201,9 +201,9 @@ function App() {
           sessions={selectedSessions}
           onClose={() => setSelectedDate(null)}
           onDelete={handleDelete}
-          onUpdateEndTime={async (newEndTime) => {
+          onUpdateEndTime={async (fastId, newEndTime) => {
             try {
-              await updateEndTime(selectedSessions[0].id, newEndTime);
+              await updateEndTime(fastId, newEndTime);
               setSelectedDate(null);
               toast({
                 title: 'Success',
@@ -211,9 +211,10 @@ function App() {
                 type: 'success'
               });
             } catch (error) {
+              console.error('Error updating end time:', error);
               toast({
                 title: 'Error',
-                description: 'Failed to update fasting end time',
+                description: 'Failed to update fasting end time. The session may have been deleted.',
                 type: 'error'
               });
             }
